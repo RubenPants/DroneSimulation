@@ -1,0 +1,22 @@
+Stappen :
+---------
+
+-> JNI interface class maken dat library load (CubeDetectionJNI).
+
+-> Header genereren met javah :
+ - eerst class compileren met "javac <volledig_pad_java_bestand>" (vanuit package folder)
+ - dan header genereren met "javah <package.class_name>" (vanuit src folder)
+
+-> "<header_name>.c" implementatie maken.
+
+-> Libraries maken met gcc :
+gcc -c -I"/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers" autopilot_vision_CubeDetectionJNI.c
+gcc -I"/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers" -shared -o libautopilotVision.dylib autopilot_vision_CubeDetectionJNI.c
+gcc -I"/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers" -shared -o autopilotVision.dll autopilot_vision_CubeDetectionJNI.c
+
+
+-> Libraries plaatsen in /native/ folder.
+
+-> Refresh /native/ folder in Eclipse
+
+-> Run

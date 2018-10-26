@@ -1,0 +1,11 @@
+#!/bin/bash
+BASEDIR=$(dirname "$0")
+cd "$BASEDIR"
+rm autopilot_vision_CubeDetectionJNI.h
+cd ..
+javac src/autopilot_vision/CubeDetectionJNI.java
+cd src
+javah autopilot_vision.CubeDetectionJNI
+rm autopilot_vision/CubeDetectionJNI.class
+cd ..
+mv src/autopilot_vision_CubeDetectionJNI.h jni/autopilot_vision_CubeDetectionJNI.h
