@@ -27,6 +27,12 @@ functionality to the project. A quick overview of these windows are:
 
 
 
+# Autopilot
+
+In this version (the first one) the autopilot will perform its actions purely based on its camera-view. This means that if the drone must go up based on its input image, the drone will go up. There is no PID-controller in this part (for that see _Part 2_) so the drone will not fly very stable. A solution of this problem can be found in the next parts of the project.
+
+
+
 # Automatic Running Tests
 
 It is possible to test the drone on randomly generated paths. Go inside the testbed's GUI to 'Run' -> 'Run tests', a new window will pop up. Within the _testing
@@ -43,7 +49,7 @@ moment there is no functionality to toggle between multiple jars, and thus it wi
 
 
 
-# Continuation of the Project
+# History of the Project
 
 This project is the first part of a larger whole.
 
