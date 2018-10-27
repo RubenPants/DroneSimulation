@@ -1,5 +1,5 @@
 
-# Overview
+# DroneSimulation-Part1 - Overview
 
 A simulation of a drone which will fly in a three dimensional virtual testbed. An array of unit cubes will be loaded inside the virtual testbed, the main
 objective of the drone is to collect all cubes as fast as possible (no order specified). 
@@ -51,6 +51,8 @@ moment there is no functionality to toggle between multiple jars, and thus it wi
 
 # History of the Project
 
-This project is the first part of a larger whole.
-
-TODO: Links, summary of the other projects, ...
+This project is the seccond part of a larger whole:
+* __Part1__ - Fly in the testbed.  
+Link: https://github.com/RubenPants/DroneSimulation-Part1  
+* __Part2__ - Take off, fly, land and taxi in the testbed. Control drone with phone.  
+Link: https://github.com/RubenPants/DroneSimulation-Part2 
