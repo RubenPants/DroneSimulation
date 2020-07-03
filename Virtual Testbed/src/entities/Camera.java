@@ -14,7 +14,7 @@ public class Camera {
 	private float pitch;
 	private float roll;
 	
-	private float distanceFromDrone = -3;
+	private float distanceFromDrone = -50;
 	private float angleAroundDrone = 0;
 	
 	private Drone drone;
@@ -23,7 +23,7 @@ public class Camera {
 	
 	public Camera(Drone drone) {
 		this.drone = drone;
-		this.unlocked = true;
+		this.unlocked = false;
 	}
 
 	public Camera(Vector3f position, float heading, float pitch, float roll) {
@@ -31,7 +31,7 @@ public class Camera {
 		this.heading = heading;
 		this.pitch = pitch;
 		this.roll = roll;
-		this.unlocked = true;
+		this.unlocked = false;
 	}
 	
 	public void setDrone(Drone drone) {

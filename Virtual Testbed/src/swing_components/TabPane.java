@@ -45,8 +45,8 @@ public class TabPane extends JTabbedPane{
 		inputPanel.updateOrientationLabels(heading, pitch, roll);
 	}
 	
-	public void updateVelocityLabels(Vector3f velocity, Vector3f angularVelocity) {
-		inputPanel.updateVelocityLabels(velocity, angularVelocity);
+	public void updateVelocityLabels(Vector3f position, Vector3f velocity, Vector3f angularVelocity) {
+		inputPanel.updateVelocityLabels(position, velocity, angularVelocity);
 	}
 	
 	public void addPathListener(PathListener listener) {
@@ -71,5 +71,9 @@ public class TabPane extends JTabbedPane{
 	
 	public void updateTime(float frameTime, float time) {
 		inputPanel.updateTime(frameTime, time);
+	}
+	
+	public ConfigPanel getConfigPanel(){
+		return configPanel;
 	}
 }

@@ -6,6 +6,7 @@ import java.util.List;
 import org.lwjgl.util.vector.Vector3f;
 
 import entities.Cube;
+import tools.Tools;
 
 public class Path {
 
@@ -65,5 +66,35 @@ public class Path {
 			}
 		}
 		return false;
+	}
+	
+	public interfaces.Path getAutopilotPath(){
+		float[] xValues = new float[this.cubes.size()];
+		float[] yValues = new float[this.cubes.size()];
+		float[] zValues = new float[this.cubes.size()];
+		for(int i=0;i<cubes.size();i++){
+			Vector3f realPosition = cubes.get(i).getPosition();
+			Vector3f randomVector = ((new Vector3f((float)Math.random(), (float)Math.random(), (float)Math.random()).normalise(null)));
+			float scale = (float)(5*Math.random());
+			Vector3f random5Vector = new Vector3f(scale*randomVector.x, scale*randomVector.y,scale*randomVector.z);
+			
+			Vector3f almostPosition = Tools.addVectors(realPosition, random5Vector);
+			
+			xValues[i] = realPosition.x;
+			yValues[i] = realPosition.y;
+			zValues[i] = realPosition.z;
+		}
+		return new interfaces.Path() {
+			public float[] getX() {
+				return xValues;
+			}
+			public float[] getY() {
+				return yValues;
+			}
+			public float[] getZ() {
+				return zValues;
+			}
+		};
+		
 	}
 }

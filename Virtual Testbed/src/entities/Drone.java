@@ -15,37 +15,38 @@ import worldSimulation.DroneStartSettings;
 
 public class Drone {
 	
-	private float GRAVITY = -9.81f;
-	private final float MAX_AOA;
+	protected float GRAVITY = -9.81f;
+	protected final float MAX_AOA;
 	
-	private TexturedModel model;
+	protected TexturedModel model;
+	protected TexturedModel shadowModel;
 	
-	private final float totalMass;
-	private final float engineZ;
-	private final float wingX;
-	private final float tailZ;
+	protected final float totalMass;
+	protected final float engineZ;
+	protected final float wingX;
+	protected final float tailZ;
 	
-	private final float wingSlope;
-	private final float horStabSlope;
-	private final float verStabSlope;
+	protected final float wingSlope;
+	protected final float horStabSlope;
+	protected final float verStabSlope;
 	
-	private final float inX; //traagheidsmoment in kg*m2 as van de vleugels / bij pitch draaiing
-	private final float inZ; //traagheidsmoment bij roll draaiing / om de as van de romp
-	private final float inY; //traagheidsmoment bij heading draaiing / om de as loodrecht door vliegtuig (is gwn de som van de andere 2)
+	protected final float inX; //traagheidsmoment in kg*m2 as van de vleugels / bij pitch draaiing
+	protected final float inZ; //traagheidsmoment bij roll draaiing / om de as van de romp
+	protected final float inY; //traagheidsmoment bij heading draaiing / om de as loodrecht door vliegtuig (is gwn de som van de andere 2)
 	
-	private Vector3f position = new Vector3f(0,0,0);	//world coo
-	private Vector3f velocity = new Vector3f(0,0,0);	//world coo
-	private Vector3f angularVelocity = new Vector3f(0,0,0); //world coo
+	protected Vector3f position = new Vector3f(0,0,0);	//world coo
+	protected Vector3f velocity = new Vector3f(0,0,0);	//world coo
+	protected Vector3f angularVelocity = new Vector3f(0,0,0); //world coo
 	
-	private float heading = 0; //links rechts gedraaid in radialen
-	private float pitch = 0; //voor onder boven gedraaid in radialen
-	private float roll = 0;// (float)Math.PI;	//rond eigen as links rechts gedraaid in radialen
+	protected float heading = 0; //links rechts gedraaid in radialen
+	protected float pitch = 0; //voor onder boven gedraaid in radialen
+	protected float roll = 0;// (float)Math.PI;	//rond eigen as links rechts gedraaid in radialen
 	
-	private float thrust;
-	private float leftWingInclination;
-	private float rightWingInclination;
-	private float horStabInclination = 0;
-	private float verStabInclination = 0;
+	protected float thrust;
+	protected float leftWingInclination;
+	protected float rightWingInclination;
+	protected float horStabInclination = 0;
+	protected float verStabInclination = 0;
 	
 	public Drone(float engineMass, float wingMass, float wingX, float tailMass, float tailZ, float wingSlope, float horStabSlope, float verStabSlope, float MAXAOA){
 		this.totalMass = engineMass+2*wingMass+tailMass;
@@ -82,6 +83,7 @@ public class Drone {
 
 		this.angularVelocity = settings.getAngularVelocity();
 		Vector3f newVel = new Vector3f(0,0,(float) -Math.sqrt(Math.abs(1.2*GRAVITY*totalMass)/(MAX_AOA*Math.cos(MAX_AOA/2)*wingSlope)));
+		newVel = new Vector3f();
 		this.velocity = transformVector(getDroneToWorldTransformationMatrix(heading, pitch, roll), newVel);
 	}
 	
@@ -156,26 +158,31 @@ public class Drone {
 		relativeAngularVelocity = addVectors(relativeAngularVelocity,scaleVector(angularAcceleration, timePassed));
 		
 		angularVelocity = transformVector(droneToWorld, relativeAngularVelocity);
+		
+		if(isCrashed()){
+			System.out.println("CRASHED");
+			throw new RuntimeException("CRASHED");
+		}
 	}
 	
-	private Vector3f calculateLiftForce(Vector3f airSpeed, Vector3f attackVector, Vector3f axis, float slope) {
+	protected Vector3f calculateLiftForce(Vector3f airSpeed, Vector3f attackVector, Vector3f axis, float slope) {
 		Vector3f projAirSpeed = new Vector3f((1-axis.x)*airSpeed.x, (1-axis.y)*airSpeed.y, (1-axis.z)*airSpeed.z);
 		Vector3f normal = Vector3f.cross(axis, attackVector, null);
 		float AOA = (float) -Math.atan2(Vector3f.dot(projAirSpeed, normal), Vector3f.dot(projAirSpeed, attackVector));
 		float factor = slope*AOA*projAirSpeed.lengthSquared();
-		if(Math.abs(AOA) > this.MAX_AOA){
-//			TODO: max AOA disabled
-//			System.out.println("MAX AOA EXCEEDED");
-//			throw new RuntimeException("MAXAOA WAS EXCEEDED. Allowed AOA is " + this.MAX_AOA + ". Calculated AOA is " + AOA +".");
+		Vector3f result = scaleVector(normal, factor);
+		if(Math.abs(AOA) > this.MAX_AOA && result.y > 50){
+			System.out.println("MAX AOA EXCEEDED");
+			throw new RuntimeException("MAXAOA WAS EXCEEDED. Allowed AOA is " + this.MAX_AOA + ". Calculated AOA is " + AOA +".");
 		}
-		return scaleVector(normal, factor);
+		return result;
 	}
 	
-	private Matrix4f getWorldToDroneTransformationMatrix(float heading, float pitch, float roll) {
+	protected Matrix4f getWorldToDroneTransformationMatrix(float heading, float pitch, float roll) {
 		return Matrix4f.invert(getDroneToWorldTransformationMatrix(heading, pitch, roll), null);
 	}
 
-	private Matrix4f getDroneToWorldTransformationMatrix(float heading, float pitch, float roll) {
+	protected Matrix4f getDroneToWorldTransformationMatrix(float heading, float pitch, float roll) {
 		Matrix4f matrix = new Matrix4f();
 		matrix.setIdentity();
 		Matrix4f.rotate(heading, new Vector3f(0, 1, 0), matrix, matrix);
@@ -183,28 +190,30 @@ public class Drone {
 		Matrix4f.rotate(roll, new Vector3f(0, 0, 1), matrix, matrix);
 		return matrix;
 	}
-	public void addModel(TexturedModel model) {
+	public void addModels(TexturedModel model, TexturedModel shadowModel) {
 		this.model = model;
+		this.shadowModel = shadowModel;
 	}
 	
 	public Entity getEntity() {
-		/*
-		 * scalingFactor = 0.05 --> wingX = 0.25
-		 * ...
-		 * scalingFactor = 1    --> wingX = 5
-		 * ...
-		 * scalingFactor = 2    --> wingX = 10
-		 * 
-		 * --> scalingFactor = wingX/5;
-		 */
-		float scalingFactor = wingX/5;
-		
-		if (scalingFactor > 2) // Give a upper boundary for the size of the drone, otherwise the drone would be to large for the screen!
-			scalingFactor = 2f;
-		else if (scalingFactor < 0.05f) // Give a lower boundary for the size of the drone, otherwise it wouldn't be visible!
-			scalingFactor = 0.05f;
+		float scalingFactor = 2.90f;
 		
 		return new Entity(model,position,heading,pitch,roll,scalingFactor);
+	}
+	
+	public Entity getShadowEntity(){
+		float scale;
+		if(position.y > 40){
+			scale = 0;
+		} else {
+			scale = 20/position.y;
+		}
+		
+		return new Entity(shadowModel, new Vector3f(position.x, 0.02f, position.z), 0, 0, 0, scale);
+	}
+	
+	public int getShadowTexID(){
+		return shadowModel.getTexture();
 	}
 	
 	public Vector3f getVelocity() {
@@ -225,4 +234,25 @@ public class Drone {
 		this.pitch += dpitch;
 		this.roll += droll;
 	}
+	
+	protected Vector3f calculateAbsolutePosition(Vector3f todrone){
+		Vector3f result=transformVector(getDroneToWorldTransformationMatrix(heading, pitch, roll), todrone);
+		result.translate(position.x, position.y, position.z);
+		return result;
+		//return Tools.applyRotationToVector(todrone, heading, pitch, roll);
+		
+	}
+
+	public boolean isCrashed() {
+		Vector3f tailposition=calculateAbsolutePosition(new Vector3f(0,0,engineZ));
+		Vector3f leftwingposition=calculateAbsolutePosition(new Vector3f(wingX,0,0));
+		Vector3f rightwingposition=calculateAbsolutePosition(new Vector3f(-wingX,0,0));
+		if(position.y<0||tailposition.y<0||leftwingposition.y<0||rightwingposition.y<0){
+			return true;
+		}
+		
+		return false;
+	}
+
+	
 }

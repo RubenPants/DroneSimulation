@@ -8,6 +8,7 @@ import org.lwjgl.opengl.GL30;
 import org.lwjgl.util.vector.Matrix4f;
 import org.lwjgl.util.vector.Vector3f;
 
+import entities.Airport;
 import entities.Camera;
 import entities.Cube;
 import entities.Drone;
@@ -24,7 +25,7 @@ public class Renderer {
 	
 	private float FOV = 120;
 	private float NEAR_PLANE = 0.1f;
-	private float FAR_PLANE = 2000f;
+	private float FAR_PLANE = 10000f;
 	
 	private StaticShader shader;
 	private TextureShader texShader;
@@ -41,8 +42,6 @@ public class Renderer {
 	
 	
 	public void renderCubes(World world, Camera camera, float scale){
-		prepareRender();
-		
 		shader.start();
 		shader.loadViewMatrix(camera);
 		for(Cube cube: world.getCubes()) {
@@ -65,7 +64,7 @@ public class Renderer {
 	
 	public void renderTex(Drone drone, Camera camera){
 		Entity entity = drone.getEntity();
-		GL11.glDisable(GL11.GL_CULL_FACE);
+		//GL11.glDisable(GL11.GL_CULL_FACE);
 		texShader.start();
 		texShader.loadViewMatrix(camera);
 		texShader.loadTransformationMatrix(createTransformationMatrix(entity.getPosition(), entity.getHeading(), entity.getPitch(), entity.getRoll(), entity.getScale()));
@@ -82,12 +81,12 @@ public class Renderer {
 		GL20.glDisableVertexAttribArray(1);
 		GL30.glBindVertexArray(0);
 		texShader.stop();
-		GL11.glEnable(GL11.GL_CULL_FACE);
+		//GL11.glEnable(GL11.GL_CULL_FACE);
 	}
 	
 	public void renderTex(Drone drone, Camera camera, float scale){
 		Entity entity = drone.getEntity();
-		GL11.glDisable(GL11.GL_CULL_FACE);
+		//GL11.glDisable(GL11.GL_CULL_FACE);
 		texShader.start();
 		texShader.loadViewMatrix(camera);
 		texShader.loadTransformationMatrix(createTransformationMatrix(entity.getPosition(), entity.getHeading(), entity.getPitch(), entity.getRoll(), scale));
@@ -104,10 +103,59 @@ public class Renderer {
 		GL20.glDisableVertexAttribArray(1);
 		GL30.glBindVertexArray(0);
 		texShader.stop();
-		GL11.glEnable(GL11.GL_CULL_FACE);
+		//GL11.glEnable(GL11.GL_CULL_FACE);
 	}
 	
-	private void prepareRender(){
+	public void renderShadow(Drone drone, Camera camera){
+		Entity entity = drone.getShadowEntity();
+		//GL11.glEnable(GL11.GL_CULL_FACE);
+		GL11.glEnable(GL11.GL_BLEND);
+		GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+		texShader.start();
+		texShader.loadViewMatrix(camera);
+		texShader.loadTransformationMatrix(createTransformationMatrix(entity.getPosition(), entity.getHeading(), entity.getPitch(), entity.getRoll(), entity.getScale()));
+		texShader.loadProjectionMatrix(projectionMatrix);
+		GL30.glBindVertexArray(entity.getModel().getVaoID());
+		GL20.glEnableVertexAttribArray(0); 
+		GL20.glEnableVertexAttribArray(1); 
+		GL13.glActiveTexture(GL13.GL_TEXTURE0);
+		GL11.glBindTexture(GL11.GL_TEXTURE_2D, drone.getShadowTexID());
+
+		GL11.glDrawElements(GL11.GL_TRIANGLES, entity.getModel().getVertexCount(), GL11.GL_UNSIGNED_INT, 0);
+		
+		GL20.glDisableVertexAttribArray(0);
+		GL20.glDisableVertexAttribArray(1);
+		GL30.glBindVertexArray(0);
+		texShader.stop();
+		GL11.glDisable(GL11.GL_BLEND);
+		//GL11.glDisable(GL11.GL_CULL_FACE);
+	}
+	
+	public void renderTex(Airport airport, Camera camera, float scale){
+		Entity entity = airport.getEntity();
+		//GL11.glDisable(GL11.GL_CULL_FACE);
+		texShader.start();
+		texShader.loadViewMatrix(camera);
+		texShader.loadTransformationMatrix(createTransformationMatrix(entity.getPosition(), entity.getHeading(), entity.getPitch(), entity.getRoll(), scale));
+		texShader.loadProjectionMatrix(projectionMatrix);
+		GL30.glBindVertexArray(entity.getModel().getVaoID());
+		GL20.glEnableVertexAttribArray(0); 
+		GL20.glEnableVertexAttribArray(1); 
+		GL13.glActiveTexture(GL13.GL_TEXTURE0);
+		GL11.glBindTexture(GL11.GL_TEXTURE_2D, airport.getTextureID());
+
+		GL11.glDrawElements(GL11.GL_TRIANGLES, entity.getModel().getVertexCount(), GL11.GL_UNSIGNED_INT, 0);
+		
+		GL20.glDisableVertexAttribArray(0);
+		GL20.glDisableVertexAttribArray(1);
+		GL30.glBindVertexArray(0);
+		texShader.stop();
+		//GL11.glEnable(GL11.GL_CULL_FACE);
+	}
+	
+	
+	
+	public void prepareRender(){
 		GL11.glEnable(GL11.GL_DEPTH_TEST);
 		GL11.glClearColor(RED, GREEN, BLUE, 1);
 		GL11.glClear(GL11.GL_COLOR_BUFFER_BIT|GL11.GL_DEPTH_BUFFER_BIT); // | = OR operator

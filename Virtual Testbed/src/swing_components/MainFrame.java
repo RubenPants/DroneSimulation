@@ -1,6 +1,7 @@
 package swing_components;
 
 import java.awt.BorderLayout;
+import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
@@ -108,8 +109,8 @@ public class MainFrame extends JFrame{
 		tabPane.updateOrientationLabels(heading, pitch, roll);
 	}
 	
-	public void updateVelocityLabels(Vector3f velocity, Vector3f angularVelocity) {
-		tabPane.updateVelocityLabels(velocity, angularVelocity);
+	public void updateVelocityLabels(Vector3f position, Vector3f velocity, Vector3f angularVelocity) {
+		tabPane.updateVelocityLabels(position, velocity, angularVelocity);
 	}
 	
 	private JMenuBar createJMenuBar() {
@@ -291,11 +292,16 @@ public class MainFrame extends JFrame{
 	}
 	
 	public void resetRunMenu() {
-		startItem.setEnabled(true);
-		pauseItem.setEnabled(false);
-		resumeItem.setEnabled(false);
-		restartItem.setEnabled(true);
-		resetItem.setEnabled(true);
+		 EventQueue.invokeLater(new Runnable() {
+		        @Override
+		        public void run() {
+		    		startItem.setEnabled(true);
+		    		pauseItem.setEnabled(false);
+		    		resumeItem.setEnabled(false);
+		    		restartItem.setEnabled(true);
+		    		resetItem.setEnabled(true);
+		        }
+		    });
 	}
 	
 	public AutopilotConfig getConfigs() {
@@ -325,5 +331,9 @@ public class MainFrame extends JFrame{
 		resumeItem.setEnabled(false);
 		restartItem.setEnabled(false);
 		resetItem.setEnabled(false);
+	}
+	
+	public TabPane getTabPane(){
+		return tabPane;
 	}
 }

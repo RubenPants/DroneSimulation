@@ -128,7 +128,20 @@ public class Loader {
 		buffer.flip();
 		return buffer;	
 	}
-	 
+	
+	public Model loadTexturedQuad(){
+		float[] positions = {-5, 0, -5,
+				 -5, 0, 5,
+				 5 , 0, 5,
+				 5 , 0, -5};
+		float[] textureCoords = { 0, 0,
+					  1, 0,
+					  1, 1,
+					  0, 1};
+		float[] normals = {0,1,0,0,1,0,0,1,0,0,1,0};
+		int[] indices = {0,1,3,	3,1,2};
+		return loadToVAO(positions, textureCoords, normals, indices);
+	}
 //    public Model loadOBJ(String objFileName) {
 //        FileReader isr = null;
 //        File objFile = new File(RES_LOC + objFileName + ".obj");

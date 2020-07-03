@@ -27,12 +27,12 @@ public class Cube extends Entity {
 	};
 	
 	public static final float[] CUBE_COLORVALUES = {
-			.7f, .7f, .7f, .7f,
+			.35f, .35f, .35f, .35f,
+			.3f, .3f, .3f, .3f,
+			.25f, .25f, .25f, .25f,
+			.40f, .40f, .40f, .40f,
 			.45f, .45f, .45f, .45f,
-			.30f, .30f, .30f, .30f,
-			.85f, .85f, .85f, .85f,
-			1.00f, 1.00f, 1.00f, 1.00f,
-			.15f, .15f, .15f, .15f
+			.2f, .2f, .2f, .2f
 	};
 	
 	public Cube(Model cubeModel,float hue, float saturation, Vector3f position) {

@@ -11,13 +11,15 @@ import javax.swing.border.Border;
 import org.lwjgl.util.vector.Vector3f;
 
 public class InfoPanel extends JPanel {
-	private FloatLabel headingLabel;
-	private FloatLabel pitchLabel;
-	private FloatLabel rollLabel;
+	private FloatPanel headingLabel;
+	private FloatPanel pitchLabel;
+	private FloatPanel rollLabel;
 	
-	private FloatLabel fpsLabel;
-	private FloatLabel timeLabel;
+	private FloatPanel fpsLabel;
+	private FloatPanel timeLabel;
 	
+
+	private Vector3Label positionLabel;
 	private Vector3Label velocityLabel;
 	private Vector3Label angularVelocityLabel;
 	
@@ -27,13 +29,14 @@ public class InfoPanel extends JPanel {
 		dim.height = 200;
 		setPreferredSize(dim);
 		
-		fpsLabel = new FloatLabel("Frames Per Second", (float)Math.toRadians(100));
-		timeLabel = new FloatLabel("Simulation Run Time", 0);
+		fpsLabel = new FloatPanel("Frames Per Second", (float)Math.toRadians(100));
+		timeLabel = new FloatPanel("Simulation Run Time", 0);
 		
-		headingLabel = new FloatLabel("Heading", 0);
-		pitchLabel = new FloatLabel("Pitch", 0);
-		rollLabel = new FloatLabel("Roll", 0);
+		headingLabel = new FloatPanel("Heading", 0);
+		pitchLabel = new FloatPanel("Pitch", 0);
+		rollLabel = new FloatPanel("Roll", 0);
 		
+		positionLabel = new Vector3Label("Position", new Vector3f(0,4.7f,0));
 		velocityLabel = new Vector3Label("Velocity", new Vector3f(0,0,0));
 		angularVelocityLabel = new Vector3Label("Relative Angular Velocity", new Vector3f(0,0,0));
 		
@@ -67,6 +70,10 @@ public class InfoPanel extends JPanel {
 		
 		gc.gridy++;
 		
+		add(positionLabel, gc);
+		
+		gc.gridy++;
+		
 		add(velocityLabel, gc);
 		
 		gc.gridy++;
@@ -80,7 +87,8 @@ public class InfoPanel extends JPanel {
 		rollLabel.updateValueToDegrees(roll);
 	}
 	 
-	public void updateVelocityLabels(Vector3f velocity, Vector3f angularVelocity) {
+	public void updateVelocityLabels(Vector3f position, Vector3f velocity, Vector3f angularVelocity) {
+		positionLabel.updateValue(position);
 		velocityLabel.updateValue(velocity);
 		angularVelocityLabel.updateValue(angularVelocity);
 	}

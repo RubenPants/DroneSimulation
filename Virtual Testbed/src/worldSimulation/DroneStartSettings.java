@@ -3,7 +3,7 @@ package worldSimulation;
 import org.lwjgl.util.vector.Vector3f;
 
 public class DroneStartSettings {
-	private Vector3f position = new Vector3f(0,0,0);	//world coo
+	private Vector3f position = new Vector3f(0,4.7f,0);	//world coo
 	private Vector3f velocity = new Vector3f(0,0,0);	//world coo
 	private Vector3f angularVelocity = new Vector3f(0,0,0); //world coo
 	

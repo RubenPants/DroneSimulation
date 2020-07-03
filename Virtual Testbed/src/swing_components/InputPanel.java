@@ -54,7 +54,7 @@ public class InputPanel extends JPanel {
 		bluePanel = new SettingsPanel("Blue: ", JSlider.HORIZONTAL, 0, 100, 100, 0.01f);
 		bluePanel.addChangeListener(changeListener);
 		
-		timePanel = new SettingsPanel("Time Percent (%): ", JSlider.HORIZONTAL, 20, 400, 100, 0.01f);
+		timePanel = new SettingsPanel("Time Percent (%): ", JSlider.HORIZONTAL, 20, 2000, 200, 0.01f);
 		timePanel.addChangeListener(new ChangeListener() {
 			public void stateChanged(ChangeEvent e) {
 				settingsListener.setTime(timePanel.getValue());
@@ -116,8 +116,8 @@ public class InputPanel extends JPanel {
 		infoPanel.updateOrientationLabels(heading, pitch, roll);
 	}
 	 
-	public void updateVelocityLabels(Vector3f velocity, Vector3f angularVelocity) {
-		infoPanel.updateVelocityLabels(velocity, angularVelocity);
+	public void updateVelocityLabels(Vector3f position, Vector3f velocity, Vector3f angularVelocity) {
+		infoPanel.updateVelocityLabels(position, velocity, angularVelocity);
 	}
 	
 	public void updateTime(float frameTime, float time) {

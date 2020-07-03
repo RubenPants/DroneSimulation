@@ -219,9 +219,10 @@ public class TesterFrame extends JFrame{
 		testsCompletedLabel.setText(completedTestNumber + " / " + testsDone);
 	}
 	
-	public void testFailed(){
+	public void testFailed(String text){
 		testsDone += 1;
 		testsCompletedLabel.setText(completedTestNumber + " / " + testsDone);
+		outputField.append(text + "\n");
 	}
 	
 	public void reset(){

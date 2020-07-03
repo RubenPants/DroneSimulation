@@ -22,9 +22,11 @@ import org.lwjgl.opengl.GL30;
 import org.lwjgl.util.vector.Vector2f;
 import org.lwjgl.util.vector.Vector3f;
 
+import entities.Airport;
 import entities.Camera;
 import entities.Cube;
 import entities.Drone;
+import entities.DroneWithWeels;
 import entities.Model;
 import entities.TexturedModel;
 import guis.GuiRenderer;
@@ -39,6 +41,7 @@ import rendering.FrameBuffer;
 import rendering.Loader;
 import rendering.Renderer;
 import rendering.SimulationStatus;
+import rendering.TerrainRenderer;
 import rendering.TextureFrameBuffer;
 import swing_components.AccuracyFrame;
 import swing_components.CloseListener;
@@ -48,6 +51,10 @@ import swing_components.SettingsEvent;
 import swing_components.SettingsListener;
 import swing_components.SimulationListener;
 import swing_components.TesterFrame;
+import terrain.ProceduralTerrainLoader;
+import terrain.Terrain;
+import terrain.TerrainTexture;
+import terrain.TerrainTexturePack;
 import tools.CubeGrabber;
 import tools.PathFileFilter;
 import tools.Tools;
@@ -60,37 +67,44 @@ import worldSimulation.WorldGenerationMode;
 
 public class AppManager {
 	
+	private static final int ORTHO_ZOOM_LEVEL = 3; //HET ZOOM LEVEL VAN ORTHOVIEW (1 = VER UITGEZOOMD, HOGER = DICHTERBIJ)
+	
 	public static final int START_DISPLAY_WIDTH = 800;
 	public static final int START_DISPLAY_HEIGHT = 800;
 	public static final int RESOLUTION_WIDTH = 200;
 	public static final int RESOLUTION_HEIGHT = 200;
-	private static int FPS_CAP = 100;
-	private static int autopilotCallsPerSecond = 100;
+	private static int FPS_CAP = 50;
+	private static int autopilotCallsPerSecond = 50;
 	private static int iterationsPerFrame = 10;
-	private static boolean useConstantTime = false;
+	private static boolean useConstantTime = true;
 	private static final int INFO_REFRESH_RATE = 10;
 	
-	private static long lastFrameTime;
+	private static float lastFrameTime;
+	private static long thisFrameTime;
+	private static long lastUpdateTime;
 	private static float delta;
 	
 	private static Renderer renderer;
 	private static Renderer planeRenderer;
 	private static GuiRenderer guiRenderer;
+	private static TerrainRenderer terrainRenderer;
 	private static Loader loader;
 	
 	private static DataController controller = new DataController();
 	
 	private static Drone drone;
 	private static DroneStartSettings startSettings = new DroneStartSettings();
-	private static Model planeModel;
 	private static TexturedModel texModel;
+	private static TexturedModel shadowTexModel;
+	private static Airport airport;
 	
 	private static World world = new World(drone);
 	private static Camera camera = new Camera(drone);
-	private static float cameraDistance = .8f;
+	private static ProceduralTerrainLoader terrainLoader;
+	private static float cameraDistance = 50f;
 	private static Model cubeModel;
-	private static float timeRelativeToReal = 1f;
-	private static float newRequestedTime = 1f;
+	private static float timeRelativeToReal = 2f;
+	private static float newRequestedRelativeTime = 2f;
 	
 	private static FrameBuffer buffer;
 	private static TextureFrameBuffer textureTopBuffer;
@@ -128,41 +142,51 @@ public class AppManager {
 	 * Starts the app by creating and showing the configurations frame. The mainframe is made as well but is still invisible.
 	 */
 	public static void createApp() {
+		//Initialiseer het swing main en tester paneel.
 		createMainFrame(START_DISPLAY_WIDTH, START_DISPLAY_HEIGHT);
 		createTesterFrame();
 		
+		//Initialiseer de loader en renderers en de buffers om naar te renderen
 		loader = new Loader();
 		renderer = new Renderer();
 		planeRenderer = new Renderer();
 		guiRenderer = new GuiRenderer(loader);
+		terrainRenderer = new TerrainRenderer();
+		
+		buffer = new FrameBuffer(RESOLUTION_WIDTH, RESOLUTION_HEIGHT);		
+		textureTopBuffer = new TextureFrameBuffer(2048,2048);
+		textureSideBuffer = new TextureFrameBuffer(2048,2048);
 
+		//Initialiseer de filechooser om paden te lezen
 		fileChooser = new JFileChooser();
 		PathFileFilter ff = new PathFileFilter();
 		fileChooser.addChoosableFileFilter(ff);
 		fileChooser.setFileFilter(ff);
 		pathReader = new PathReader();
 		
+		//Initialiseer de drone en de wereld voor simulatie
 		configs = mainFrame.getConfigs();
-		drone = new Drone(configs.getEngineMass(),configs.getWingMass(),configs.getWingX(),
+		drone = new DroneWithWeels(configs.getEngineMass(),configs.getWingMass(),configs.getWingX(),
 				configs.getTailMass(), configs.getTailSize(), configs.getWingLiftSlope(),
 				configs.getHorStabLiftSlope(),configs.getVerStabLiftSlope(),configs.getMaxAOA());
 		drone.setGravity(configs.getGravity());
+		((DroneWithWeels)drone).setOtherConfigs(mainFrame.getTabPane().getConfigPanel());
 		drone.reset(startSettings);
 		camera = new Camera(drone);
 		world = new World(drone);
 		configs = mainFrame.getConfigs();
 		
-		buffer = new FrameBuffer(RESOLUTION_WIDTH, RESOLUTION_HEIGHT);
-		cubeModel = loader.loadToVAO(Tools.getCubeVertices(1, 1, 1),
+		//Initialiseer het drone model
+		cubeModel = loader.loadToVAO(Tools.getCubeVertices(5, 5, 5),
 				Cube.CUBE_COLORVALUES,
 				Cube.CUBE_INDICES);
-		planeModel = OBJFileLoader.loadOBJ("test", loader);
-		texModel = new TexturedModel(planeModel.getVaoID(),planeModel.getVertexCount(),loader.loadTexture("testdonker"));
-		drone.addModel(texModel);
+		Model planeModel = OBJFileLoader.loadOBJ("plane2", loader);
+		Model shadowModel = loader.loadTexturedQuad();
+		texModel = new TexturedModel(planeModel.getVaoID(),planeModel.getVertexCount(),loader.loadTexture("plane2"));
+		shadowTexModel = new TexturedModel(shadowModel.getVaoID(), shadowModel.getVertexCount(), loader.loadTexture("shadowTexture"));
+		drone.addModels(texModel, shadowTexModel);
 		
-		textureTopBuffer = new TextureFrameBuffer(2048,2048);
-		textureSideBuffer = new TextureFrameBuffer(2048,2048);
-		
+		//Splits het scherm in 2 delen voor de orthogonale projecties
 		GuiTexture guiTextureTop = new GuiTexture(textureTopBuffer.getTexture(), new Vector2f(0f,0.5f), new Vector2f(1f,-.5f));
 		GuiTexture guiTextureSide = new GuiTexture(textureSideBuffer.getTexture(), new Vector2f(0f,-0.5f), new Vector2f(1f,-.5f));
 		GuiTexture guiSplitter = new GuiTexture(loader.loadTexture("splitter"), new Vector2f(0,0), new Vector2f(1f,0.002f));
@@ -171,10 +195,119 @@ public class AppManager {
 		guis.add(guiTextureSide);
 		guis.add(guiSplitter);
 		
+		//Initialiseer de cube grabber
 		cubeGrabber = new CubeGrabber(240,60, world);
 		
+		//*****************TERRAIN TEXTURES**********************
+		
+		TerrainTexture backgroundTexture = new TerrainTexture(loader.loadTexture("grass"));
+		TerrainTexture rTexture = new TerrainTexture(loader.loadTexture("grass"));
+		TerrainTexture gTexture = new TerrainTexture(loader.loadTexture("grass"));
+		TerrainTexture bTexture = new TerrainTexture(loader.loadTexture("grass"));
+				
+		TerrainTexturePack texturePack = new TerrainTexturePack(backgroundTexture,rTexture,gTexture,bTexture);
+		TerrainTexture blendMap = new TerrainTexture(loader.loadTexture("blendMap"));
+		
+		Model terrainModel = Terrain.generateTerrain(loader);
+		terrainLoader = new ProceduralTerrainLoader(drone, terrainModel, 25, texturePack, blendMap);
+
+		airport = new Airport(70, 400, new Vector2f(0,-175), loader.loadTexture("tarmac2"), loader);		
+		//Initialiseer de frame time en maak mainFrame zichtbaar
 		lastFrameTime = getCurrentTime();
+		lastUpdateTime = getCurrentTime();
 		mainFrame.setVisible(true);
+	}
+	
+	/**
+	 * Update the whole app. This includes rendering the image, then if the simulation isn't paused updating the drone.
+	 * Then the display is updated so the drone can be evolved over the amount of time that it took to do the last frame.
+	 */
+	public static void updateApp() {
+		long time = getCurrentTime();
+		//Haal de simulation status op. (Wordt ook aangepast door swing thread)
+		SimulationStatus status = simStatus;
+		
+		/*
+		 * Kijk naar de simulation status:
+		 * ResetRequested: Herstart de drone en verwijder het pad
+		 * RestartRequested: Herstart enkel de drone en het pad
+		 * PathUpdateRequested: Herstart de drone en zet het nieuwe pad
+		 */
+		switch (status) {
+		case ResetRequested:
+			reset();
+			break;
+		case RestartRequested:
+			reset();
+			world.setPath(pathOnRestart);
+			break;
+		case PathUpdateRequested:
+			reset();
+			world.setPath(pathOnRestart);
+			break;
+		case ConfigsChangeRequested:
+			changeConfigs();
+			break;
+		default:
+			break;
+		}
+
+		terrainLoader.updateTerrain();
+		//Kijk of de tijdversnelling veranderd is
+		if(timeRelativeToReal != newRequestedRelativeTime) {
+			timeRelativeToReal = newRequestedRelativeTime;
+		}
+		//Render naar de buffers
+		renderForAutopilot();
+
+		//Update het scherm (default FrameBuffer)
+		updateDisplay();
+		
+		//Roep de autopilot op. Vraag nieuwe vliegtuiginstellingen en pas deze aan. Eerste keer: configureer
+		if(status == SimulationStatus.Started || status == SimulationStatus.ConfigRequested){
+			callAutopilot();
+		}
+
+		//Als de simulatie gestart is, simuleer de wereld een tijdstap vooruit en controleer op targets
+		if(status == SimulationStatus.Started) {
+			try {
+				for(int i = 0;i<iterationsPerFrame;i++) {
+					if(!useConstantTime)
+						drone.timePassed(getUpdateTimeSeconds()*timeRelativeToReal/iterationsPerFrame);
+					else
+						drone.timePassed((float) ((1.0/autopilotCallsPerSecond)/iterationsPerFrame));
+				}
+				simulationTime += useConstantTime? (1.0/autopilotCallsPerSecond) : getUpdateTimeSeconds();
+				if(isTesting && simulationTime > timeToBeat){
+					simStatus = SimulationStatus.ResetRequested;
+					// TODO
+					testerFrame.testFailed("Test failed: Took too long");
+					//Vector3f failedCube = world.getPath().getCubes().get(0).getPosition();
+					//testerFrame.testFailed("failed on cube height difference: "+(failedCube.y - 150f));
+				}
+			} catch (RuntimeException e){
+				if(isTesting){
+					simStatus = SimulationStatus.ResetRequested;
+					testerFrame.testFailed("Test failed: MAX AOA exceeded");
+				} else {
+					showErrorMessage(e.getMessage());
+				}
+			}
+			refreshInfo();
+			checkTargetReached();
+		}
+		//Synchroniseer de update van de app naar het aantal autopilot calls.
+		long timeSoFar = getCurrentTime() - time;
+		long desiredTime = (long) ((1000/autopilotCallsPerSecond)/timeRelativeToReal);
+		if(timeSoFar < desiredTime){
+			try {
+				//System.out.println("HAD TO SLEEP");
+				Thread.sleep(desiredTime - timeSoFar);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+		//System.out.println("TOTAL UPDATE TIME TESTBED:" + getCurrentTime() + "-" + time + "=" + (getCurrentTime()-time));
 	}
 	
 	/**
@@ -191,18 +324,19 @@ public class AppManager {
 		mainFrame.setSettingsListener(new SettingsListener() {
 			public void changeRenderSettings(SettingsEvent e) {
 				renderer.changeSettings(e.getFov(), e.getRed(), e.getGreen(), e.getBlue());
+				terrainRenderer.changeSettings(e.getFov());
 			}
 			public void addCube(Vector3f position) {
 				AppManager.addCube(position);	
 			}
 			@Override
 			public void setTime(float time) {
-				newRequestedTime = time;
+				newRequestedRelativeTime = time;
 			}
 			@Override
 			public void setConfigs(AutopilotConfig config) {
 				configs = config;
-				simStatus = SimulationStatus.SettingsChangeRequested;
+				simStatus = SimulationStatus.ConfigsChangeRequested;
 			}
 			@Override
 			public void setStartSettigs(DroneStartSettings settings) {
@@ -243,7 +377,7 @@ public class AppManager {
 			}
 			@Override
 			public void generateRandomPath() {
-				controller.addPath(RandomWorldGenerator.generateRandomWorld(5, WorldGenerationMode.FINDTILCORRECT, cubeModel));
+				controller.addPath(RandomWorldGenerator.generateRandomWorld(20, WorldGenerationMode.FINDTILCORRECT, cubeModel));
 			}
 		});
 		mainFrame.setPathData(controller.getImportedPaths());
@@ -283,7 +417,6 @@ public class AppManager {
 							public void actionPerformed(ActionEvent e) {
 								int[] settings = frame.getSettings();
 								AppManager.autopilotCallsPerSecond = settings[0];
-								AppManager.FPS_CAP = (int) (autopilotCallsPerSecond*timeRelativeToReal);
 								AppManager.iterationsPerFrame = settings[1];
 								AppManager.useConstantTime = (settings[2] == 1);
 								frame.dispose();
@@ -296,11 +429,12 @@ public class AppManager {
 	}
 	
 	private static void createTesterFrame(){
-		testerFrame = new TesterFrame(100, 8, 180);
+		// TODO
+		testerFrame = new TesterFrame(10, 10, 1800);
 		testerFrame.addStartButtonListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				simStatus = SimulationStatus.ResetRequested;
-				newRequestedTime = testerFrame.getSpeed();
+				newRequestedRelativeTime = testerFrame.getSpeed();
 				isTesting = true;
 				testAmount = testerFrame.getAmountOfTests();
 				timeToBeat = testerFrame.getTimeToBeat();
@@ -312,7 +446,7 @@ public class AppManager {
 		testerFrame.addStopButtonListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				simStatus = SimulationStatus.ResetRequested;
-				newRequestedTime = 1;
+				newRequestedRelativeTime = 1;
 				isTesting = false;
 				testerFrame.reset();
 				mainFrame.resetRunMenu();
@@ -335,7 +469,7 @@ public class AppManager {
 		testerFrame.addClearButtonListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				simStatus = SimulationStatus.ResetRequested;
-				newRequestedTime = 1;
+				newRequestedRelativeTime = 1;
 				isTesting = false;
 				testerFrame.reset();
 				testerFrame.lockTesting(false);
@@ -348,7 +482,7 @@ public class AppManager {
 	 * Update the virtual drone. (Ask the autopilot for outputs and change the settings of the plane.)
 	 * If the drone is not yet configured for the autopilot, then it gets configured. 
 	 */
-	private static void updateDrone(){
+	private static void callAutopilot(){
 		AutopilotOutputs outputs;
 		if(simStatus != SimulationStatus.ConfigRequested) {
 			outputs = getAutopilotOutputs();
@@ -356,8 +490,9 @@ public class AppManager {
 			outputs = configDrone();
 			pathOnRestart = world.getPath();
 			simStatus = SimulationStatus.Started;
+			autopilot.setPath(pathOnRestart.getAutopilotPath());
 		}
-		changeDroneSettings(outputs);
+		changeDroneInputs(outputs);
 	}
 	
 	/**
@@ -365,81 +500,28 @@ public class AppManager {
 	 * The amount of time between the last frame and the current frame is saved in delta. 
 	 */
 	private static void updateDisplay() {
-		Display.sync(FPS_CAP);
-		Display.update();
-		long currentFrameTime = getCurrentTime();
-		delta = (currentFrameTime - lastFrameTime)/1000f;
-		lastFrameTime = currentFrameTime;
-	}
-	
-	/**
-	 * Update the whole app. This includes rendering the image, then if the simulation isn't paused updating the drone.
-	 * Then the display is updated so the drone can be evolved over the amount of time that it took to do the last frame.
-	 */
-	public static void updateApp() {
-		SimulationStatus status = simStatus;
-		if(status == SimulationStatus.ResetRequested){
-			reset();
-		}
-		if(status == SimulationStatus.PathUpdateRequested || status == SimulationStatus.RestartRequested) {
-			reset();
-			world.setPath(pathOnRestart);
-		}
-		if(status == SimulationStatus.SettingsChangeRequested){
-			drone = new Drone(configs.getEngineMass(),configs.getWingMass(),configs.getWingX(),
-					configs.getTailMass(), configs.getTailSize(), configs.getWingLiftSlope(),
-					configs.getHorStabLiftSlope(),configs.getVerStabLiftSlope(),configs.getMaxAOA());
-			drone.setGravity(configs.getGravity());
-			drone.reset(startSettings);
-			drone.addModel(texModel);
-			world.setDrone(drone);
-			camera = new Camera(drone);
-			simStatus = SimulationStatus.Idle;
-		}
-		if(timeRelativeToReal != newRequestedTime) {
-			timeRelativeToReal = newRequestedTime;
-			FPS_CAP = (int) (autopilotCallsPerSecond*newRequestedTime);
-		}
-		render();
-		if(status == SimulationStatus.Started || status == SimulationStatus.ConfigRequested){
-			updateDrone();
-		}
-		updateDisplay();
-		if(status == SimulationStatus.Started) {
-			try {
-				for(int i = 0;i<iterationsPerFrame;i++) {
-					if(!useConstantTime)
-						drone.timePassed(getFrameTimeSeconds()*timeRelativeToReal/iterationsPerFrame);
-					else
-						drone.timePassed((float) ((1.0/FPS_CAP)*timeRelativeToReal/iterationsPerFrame));
-				}
-				simulationTime += useConstantTime? (1.0/FPS_CAP)*timeRelativeToReal : getFrameTimeSeconds()*timeRelativeToReal;
-				if(isTesting && simulationTime > timeToBeat){
-					simStatus = SimulationStatus.ResetRequested;
-					testerFrame.appendText("Test failed: Took too long");
-					testerFrame.testFailed();
-				}
-			} catch (RuntimeException e){
-				if(isTesting){
-					simStatus = SimulationStatus.ResetRequested;
-					testerFrame.appendText("Test failed: MAX AOA exceeded");
-					testerFrame.testFailed();
-				} else {
-					showErrorMessage(e.getMessage());
-				}
-			}
-			refreshInfo();
-			checkTargetReached();
+		long currentUpdateTime = getCurrentTime();
+		delta = (currentUpdateTime - lastUpdateTime)/1000f;
+		lastUpdateTime = currentUpdateTime;
+		thisFrameTime += delta*1000;
+		if(thisFrameTime >= 1000/FPS_CAP) {
+			renderTestbedView();
+			lastFrameTime = thisFrameTime/1000f;
+			thisFrameTime = 0;
+			Display.update();
 		}
 	}
 	
 	/**
 	 * Get the last frame's time.
 	 */
-	public static float getFrameTimeSeconds() {
+	public static float getUpdateTimeSeconds() {
 		return delta;
 	}
 	
+	public static float getFrameTimeSeconds(){
+		return lastFrameTime;
+	}
 	/**
 	 * Close the app. Cleans up all the data stored in the loader, renderer and buffers. Destroys the display.
 	 */
@@ -455,15 +537,28 @@ public class AppManager {
 	}
 
 	private static void checkTargetReached() {
-		if(world.targetReached()) {
-			if(isTesting){
-				testerFrame.appendText("Test completed");
-				testerFrame.testCompleted(simulationTime);
-				simStatus = SimulationStatus.ResetRequested;
-			}
-			else {
-	            simStatus = SimulationStatus.Paused;
-				showMessage("Congratulations, your autopilot reached the target");
+		boolean targetReached = world.targetReached();
+		if(drone.getVelocity().length() < 1 && (drone.getPosition().lengthSquared() - Math.pow(drone.getPosition().y, 2) < 9) &&
+				simulationTime > 60) {
+			if(targetReached) {
+				if(isTesting){
+					testerFrame.appendText("Test completed");
+					testerFrame.testCompleted(simulationTime);
+					simStatus = SimulationStatus.ResetRequested;
+				}
+				else {
+		            simStatus = SimulationStatus.Paused;
+					showMessage("Congratulations, your autopilot completed the path and stopped at its initial position.");
+				}
+			} else {
+				if(isTesting){
+					testerFrame.testFailed("Landed, but not all cubes done");
+					simStatus = SimulationStatus.ResetRequested;
+				}
+				else {
+		            simStatus = SimulationStatus.Paused;
+					showErrorMessage("Your autopilot landed, but didn't get all the cubes");
+				}
 			}
 		}
 	}
@@ -472,6 +567,7 @@ public class AppManager {
 		return shouldClose;
 	}
 	
+	//Current time in milliseconds
 	private static long getCurrentTime() {
 		return Sys.getTime()*1000/Sys.getTimerResolution();
 	}
@@ -480,9 +576,12 @@ public class AppManager {
 		return loader.loadToVAO(positions, colors, indices);
 	}
 	
-	private static void render() {
+	private static void renderForAutopilot(){
 		buffer.bindFrameBuffer();
+		planeRenderer.prepareRender();
 		planeRenderer.renderCubes(world, camera, 1);
+		terrainRenderer.calculatePerspectiveMatrix();
+		terrainRenderer.render(terrainLoader.getTerrains(), camera);
 		imageBuffer.clear();
 		GL11.glReadPixels(0, 0, RESOLUTION_WIDTH, RESOLUTION_HEIGHT, GL11.GL_RGB, GL11.GL_UNSIGNED_BYTE, imageBuffer);
 		byte[] image_flipped = new byte[RESOLUTION_WIDTH*RESOLUTION_HEIGHT*3];
@@ -502,6 +601,10 @@ public class AppManager {
 		}
 		
 		buffer.unbindCurrentFrameBuffer();
+	}
+	
+	private static void renderTestbedView() {
+		renderer.prepareRender();
 		switch(cameraView) {
 		case DroneView:
 			buffer.bindFrameBuffer();
@@ -514,16 +617,23 @@ public class AppManager {
 			break;
 		case OrthogonalViews:
 			textureTopBuffer.bindFrameBuffer();
-			Camera orthoTopCamera = new Camera(new Vector3f(0,150,-100), (float)Math.PI/2,-(float)Math.PI/2,0);
-			renderer.calculateOrthogonalMatrix(240, 60);
-			renderer.renderCubes(world, orthoTopCamera, 2);
-			renderer.renderTex(drone, orthoTopCamera, 1f);
+			renderer.prepareRender();
+			Camera orthoTopCamera = new Camera(new Vector3f(drone.getPosition().x,5000,drone.getPosition().z), (float)Math.PI/2,-(float)Math.PI/2,0);
+			//Camera orthoTopCamera = new Camera(new Vector3f(0,3000,0), (float)Math.PI/2,-(float)Math.PI/2,0);
+			renderer.calculateOrthogonalMatrix(5000/ORTHO_ZOOM_LEVEL, 2500/ORTHO_ZOOM_LEVEL);
+			terrainRenderer.calculateOrthogonalMatrix(5000/ORTHO_ZOOM_LEVEL, 2500/ORTHO_ZOOM_LEVEL);
+			terrainRenderer.render(terrainLoader.getTerrains(), orthoTopCamera);
+			renderer.renderTex(airport, orthoTopCamera, 1);
+			renderer.renderShadow(drone, orthoTopCamera);
+			renderer.renderTex(drone, orthoTopCamera, 12f/ORTHO_ZOOM_LEVEL);
+			renderer.renderCubes(world, orthoTopCamera, 12/ORTHO_ZOOM_LEVEL);
 			textureTopBuffer.unbindCurrentFrameBuffer();
 			
 			textureSideBuffer.bindFrameBuffer();
-			Camera orthoSideCamera = new Camera(new Vector3f(150,0,-100), (float)Math.PI/2,0,0);
-			renderer.renderCubes(world, orthoSideCamera, 2);
-			renderer.renderTex(drone, orthoSideCamera, 1f);
+			renderer.prepareRender();
+			Camera orthoSideCamera = new Camera(new Vector3f(5000,drone.getPosition().y,drone.getPosition().z), (float)Math.PI/2,0,0);
+			renderer.renderCubes(world, orthoSideCamera, 12/ORTHO_ZOOM_LEVEL);
+			renderer.renderTex(drone, orthoSideCamera, 12f/ORTHO_ZOOM_LEVEL);
 			textureSideBuffer.unbindCurrentFrameBuffer();
 
 			guiRenderer.render(guis);
@@ -538,15 +648,24 @@ public class AppManager {
 							0,(float) (cameraDistance*Math.cos(drone.getHeading()))),null),
 					drone.getHeading(), 0, 0);
 			renderer.calculatePerspectiveMatrix();
+			terrainRenderer.calculatePerspectiveMatrix();
 			renderer.renderCubes(world, thirdPersonCamera, 1);
 			renderer.renderTex(drone, thirdPersonCamera);
+			renderer.renderTex(airport, thirdPersonCamera, 1);
+			terrainRenderer.render(terrainLoader.getTerrains(), thirdPersonCamera);
+			renderer.renderShadow(drone, thirdPersonCamera);
+
 			break;
 		case Custom:
 			customCamera.move();
 			customCamera.moveAroundDrone(drone);
 			renderer.calculatePerspectiveMatrix();
+			terrainRenderer.calculatePerspectiveMatrix();
 			renderer.renderCubes(world, customCamera, 1);
 			renderer.renderTex(drone, customCamera);
+			terrainRenderer.render(terrainLoader.getTerrains(), customCamera);
+			renderer.renderTex(airport, customCamera, 1);
+			renderer.renderShadow(drone, customCamera);
 			break;
 		}
 	}
@@ -616,7 +735,7 @@ public class AppManager {
 		return autopilot.timePassed(inputs);
 	}
 	
-	private static void changeDroneSettings(AutopilotOutputs outputs){
+	private static void changeDroneInputs(AutopilotOutputs outputs){
 		drone.setInputs(outputs);
 	}
 
@@ -630,7 +749,7 @@ public class AppManager {
 	    EventQueue.invokeLater(new Runnable() {
 	        @Override
 	        public void run() {
-	            int i = JOptionPane.showConfirmDialog(null, "Congratulations, you reached the target! Press 'Yes' to quit the app, or press 'No' to restart.");
+	            int i = JOptionPane.showConfirmDialog(null, message + " Press 'Yes' to quit the app, or press 'No' to restart.");
 	            if(i == JOptionPane.OK_OPTION) {
 		            shouldClose = true;
 		            mainFrame.dispose();
@@ -658,10 +777,10 @@ public class AppManager {
 	}
 
 	private static void refreshInfo() {
-		deltaLastInfoUpdate += getFrameTimeSeconds();
+		deltaLastInfoUpdate += getUpdateTimeSeconds();
 		if(deltaLastInfoUpdate >= 1.0/INFO_REFRESH_RATE) {
 			mainFrame.updateOrientationLabels(drone.getHeading(), drone.getPitch(), drone.getRoll());
-			mainFrame.updateVelocityLabels(drone.getVelocity(), drone.getRelativeAngularVelocity());
+			mainFrame.updateVelocityLabels(drone.getPosition(), drone.getVelocity(), drone.getRelativeAngularVelocity());
 			mainFrame.updateTime(getFrameTimeSeconds(), simulationTime);
 			deltaLastInfoUpdate = 0;
 		}
@@ -673,19 +792,34 @@ public class AppManager {
 		simulationTime = 0;
 		simStatus = SimulationStatus.Idle;
 		mainFrame.updateOrientationLabels(drone.getHeading(), drone.getPitch(), drone.getRoll());
-		mainFrame.updateVelocityLabels(drone.getVelocity(), drone.getRelativeAngularVelocity());
+		mainFrame.updateVelocityLabels(drone.getPosition(), drone.getVelocity(), drone.getRelativeAngularVelocity());
 		if(isTesting){
 			testsSoFar++;
 			if(testsSoFar > testAmount){
 				testsSoFar = 0;
 				isTesting = false;
 			} else {
-				world.setPath(RandomWorldGenerator.generateRandomWorld(5, WorldGenerationMode.FINDTILCORRECT, cubeModel));
+				// TODO
+				//world.setPath(RandomWorldGenerator.generateRandomWorld(20, WorldGenerationMode.FINDTILCORRECT, cubeModel));
+				world.setPath(pathReader.ReadAndCreatePathFromText(new File("res/pad"+Integer.toString(testsSoFar)+".txt"), cubeModel));
 				simStatus = SimulationStatus.ConfigRequested;
 			}
 		} else {
 			mainFrame.resetRunMenu();
 		}
+	}
+	
+	private static void changeConfigs(){
+		drone = new DroneWithWeels(configs.getEngineMass(),configs.getWingMass(),configs.getWingX(),
+				configs.getTailMass(), configs.getTailSize(), configs.getWingLiftSlope(),
+				configs.getHorStabLiftSlope(),configs.getVerStabLiftSlope(),configs.getMaxAOA());
+		drone.setGravity(configs.getGravity());
+		drone.reset(startSettings);
+		drone.addModels(texModel, shadowTexModel);
+		terrainLoader.setDrone(drone);
+		world.setDrone(drone);
+		camera = new Camera(drone);
+		simStatus = SimulationStatus.Idle;
 	}
 	
 	public static void loadPath(String fileName) {
@@ -699,17 +833,18 @@ public class AppManager {
 	
 	public static void saveImage(File file) {
 		
+		
 		int width = 200, height = 200;
 		
 		// Convert to image
-		BufferedImage bufferedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+		BufferedImage bufferedImage = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
 		for (int i=0 ; i<height ; i++) {
 			for (int j=0 ; j<width ; j++) {
-				byte r = image[(i * width + j) * 3 + 0];
-				byte g = image[(i * width + j) * 3 + 1];
-				byte b = image[(i * width + j) * 3 + 2];
+				byte r = imageCopy[(i * width + j) * 3 + 0];
+				byte g = imageCopy[(i * width + j) * 3 + 1];
+				byte b = imageCopy[(i * width + j) * 3 + 2];
 				int rgb = ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF);
-				bufferedImage.setRGB(j, height - 1 - i, rgb);
+				bufferedImage.setRGB(j, i, rgb);
 			}
 		}
 		

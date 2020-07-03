@@ -8,5 +8,5 @@ public enum SimulationStatus {
 	ResetRequested,
 	RestartRequested,
 	PathUpdateRequested,
-	SettingsChangeRequested
+	ConfigsChangeRequested
 }
