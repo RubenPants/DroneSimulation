@@ -4,6 +4,10 @@
 A simulation of a drone which will fly in a three dimensional virtual testbed. An array of unit cubes will be loaded inside the virtual testbed, the main
 objective of the drone is to collect all cubes as fast as possible (no order specified). 
 
+<p align="center">
+  <img src="https://github.com/RubenPants/DroneSimulation-Part1/blob/master/Virtual-testbed.gif"/>
+</p>
+
 
 
 # Run the Project
